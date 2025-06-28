@@ -4,253 +4,431 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Constitution des classes</title>
+    <meta name="description" content="Application de gestion et répartition des élèves en classes">
+    
+    <!-- Stylesheets -->
     <link href="styles.css" rel="stylesheet">
     <link href="group-modal.css" rel="stylesheet">
-    <!-- Font Awesome CDN -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <!-- SortableJS CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+    
+    <!-- External Dependencies -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" 
+          crossorigin="anonymous" referrerpolicy="no-referrer">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" 
+            integrity="sha512-Eezs+g9Lq4TCCq0wae01s9PuNWzHYoCMkE97e2qdkYthpI0pzC3UGB03lgEHn2XM85hDOUF6qgqqszs+iXU4UA==" 
+            crossorigin="anonymous"></script>
 </head>
 
 <body>
-    <header class="header">
-        <h1>Liste des élèves <i id="toggle-icon" class="fas fa-chevron-left" title="Afficher/Masquer la colonne 'A placer'"></i></h1>
-        <div class="controls">
-            Afficher : 
-            <label class="toggle-average-label"><input type="checkbox" id="toggle-classe" checked> Classe</label>
-            <label class="toggle-average-label"><input type="checkbox" id="toggle-average" checked> Moyennes </label>
-            <label class="toggle-average-label"><input type="checkbox" id="toggle-lv1" checked> LV1</label>
-            <label class="toggle-average-label"><input type="checkbox" id="toggle-lv2" checked> LV2</label>
-            <label class="toggle-average-label"><input type="checkbox" id="toggle-option1" checked> Option1</label>
-            <label class="toggle-average-label"><input type="checkbox" id="toggle-option2" checked> Option2</label>
-            <label class="toggle-average-label"><input type="checkbox" id="toggle-option3" checked> Option3</label>
-            <button type="button" class="btn" id="add-column-button"><i class="fa fa-plus-square" aria-hidden="true"></i> Ajouter une classe</button>
-            <button type="button" class="btn" id="add-button"><i class="fa fa-user-plus" aria-hidden="true"></i> Ajouter un élève</button>
-            <button type="button" class="btn" id="groups-button"><i class="fa fa-users" aria-hidden="true"></i> Gérer les groupes</button>
-            <!-- Exemple pour les trois boutons -->
-            <button type="button" class="btn" id="sort-moyenne"><i class="fas fa-sort-numeric-down"></i> Tri par moyenne</button>
-            <button type="button" class="btn" id="sort-alphabetique"><i class="fas fa-sort-alpha-down"></i> Tri alphabétique</button>
-            <button type="button" class="btn" id="sort-classe"><i class="fas fa-sort"></i> Tri par classe</button>
-            <button type="button" class="btn" id="settings-button"><i class="fas fa-cog"></i> Paramètres</button>
-        </div>
+    <!-- Skip to main content for accessibility -->
+    <a href="#main-content" class="sr-only">Aller au contenu principal</a>
+
+    <!-- Header with controls -->
+    <header class="header" role="banner">
+        <h1>
+            Liste des élèves 
+            <button id="toggle-icon" class="fas fa-chevron-left" 
+                    title="Afficher/Masquer la colonne 'A placer'" 
+                    aria-label="Basculer l'affichage de la colonne 'A placer'">
+            </button>
+        </h1>
+        
+        <nav class="controls" role="navigation" aria-label="Contrôles d'affichage et actions">
+            <!-- Display toggles -->
+            <fieldset style="border: none; padding: 0; margin: 0;">
+                <legend class="sr-only">Options d'affichage</legend>
+                <span style="margin-right: var(--space-2); font-weight: var(--font-weight-medium);">Afficher :</span>
+                
+                <label class="toggle-average-label">
+                    <input type="checkbox" id="toggle-classe" checked aria-describedby="toggle-classe-desc">
+                    Classe
+                </label>
+                <span id="toggle-classe-desc" class="sr-only">Afficher ou masquer les informations de classe</span>
+                
+                <label class="toggle-average-label">
+                    <input type="checkbox" id="toggle-average" checked aria-describedby="toggle-average-desc">
+                    Moyennes
+                </label>
+                <span id="toggle-average-desc" class="sr-only">Afficher ou masquer les moyennes des élèves</span>
+                
+                <label class="toggle-average-label">
+                    <input type="checkbox" id="toggle-lv1" checked aria-describedby="toggle-lv1-desc">
+                    LV1
+                </label>
+                <span id="toggle-lv1-desc" class="sr-only">Afficher ou masquer la première langue vivante</span>
+                
+                <label class="toggle-average-label">
+                    <input type="checkbox" id="toggle-lv2" checked aria-describedby="toggle-lv2-desc">
+                    LV2
+                </label>
+                <span id="toggle-lv2-desc" class="sr-only">Afficher ou masquer la deuxième langue vivante</span>
+                
+                <label class="toggle-average-label">
+                    <input type="checkbox" id="toggle-option1" checked aria-describedby="toggle-option1-desc">
+                    Option1
+                </label>
+                <span id="toggle-option1-desc" class="sr-only">Afficher ou masquer la première option</span>
+                
+                <label class="toggle-average-label">
+                    <input type="checkbox" id="toggle-option2" checked aria-describedby="toggle-option2-desc">
+                    Option2
+                </label>
+                <span id="toggle-option2-desc" class="sr-only">Afficher ou masquer la deuxième option</span>
+                
+                <label class="toggle-average-label">
+                    <input type="checkbox" id="toggle-option3" checked aria-describedby="toggle-option3-desc">
+                    Option3
+                </label>
+                <span id="toggle-option3-desc" class="sr-only">Afficher ou masquer la troisième option</span>
+            </fieldset>
+            
+            <!-- Action buttons -->
+            <div role="group" aria-label="Actions principales">
+                <button type="button" class="btn" id="add-column-button" aria-describedby="add-column-desc">
+                    <i class="fa fa-plus-square" aria-hidden="true"></i>
+                    <span>Ajouter une classe</span>
+                </button>
+                <span id="add-column-desc" class="sr-only">Créer une nouvelle colonne de classe</span>
+                
+                <button type="button" class="btn" id="add-button" aria-describedby="add-student-desc">
+                    <i class="fa fa-user-plus" aria-hidden="true"></i>
+                    <span>Ajouter un élève</span>
+                </button>
+                <span id="add-student-desc" class="sr-only">Ajouter un nouvel élève à la liste</span>
+                
+                <button type="button" class="btn" id="groups-button" aria-describedby="groups-desc">
+                    <i class="fa fa-users" aria-hidden="true"></i>
+                    <span>Gérer les groupes</span>
+                </button>
+                <span id="groups-desc" class="sr-only">Ouvrir la gestion des groupes d'élèves</span>
+            </div>
+            
+            <!-- Sorting buttons -->
+            <div role="group" aria-label="Options de tri">
+                <button type="button" class="btn btn-primary" id="sort-moyenne" aria-describedby="sort-moyenne-desc">
+                    <i class="fas fa-sort-numeric-down" aria-hidden="true"></i>
+                    <span>Tri par moyenne</span>
+                </button>
+                <span id="sort-moyenne-desc" class="sr-only">Trier les élèves par ordre de moyenne décroissante</span>
+                
+                <button type="button" class="btn btn-primary" id="sort-alphabetique" aria-describedby="sort-alpha-desc">
+                    <i class="fas fa-sort-alpha-down" aria-hidden="true"></i>
+                    <span>Tri alphabétique</span>
+                </button>
+                <span id="sort-alpha-desc" class="sr-only">Trier les élèves par ordre alphabétique</span>
+                
+                <button type="button" class="btn btn-primary" id="sort-classe" aria-describedby="sort-classe-desc">
+                    <i class="fas fa-sort" aria-hidden="true"></i>
+                    <span>Tri par classe</span>
+                </button>
+                <span id="sort-classe-desc" class="sr-only">Trier les élèves par classe d'origine</span>
+                
+                <button type="button" class="btn btn-del" id="settings-button" aria-describedby="settings-desc">
+                    <i class="fas fa-cog" aria-hidden="true"></i>
+                    <span>Paramètres</span>
+                </button>
+                <span id="settings-desc" class="sr-only">Ouvrir les paramètres d'import/export</span>
+            </div>
+        </nav>
     </header>
 
-    <main class="main-content">
-        <div id="colonnes-container">
-            <!-- Les colonnes sont générées dynamiquement ici par script.js -->
+    <!-- Main content area -->
+    <main class="main-content" id="main-content" role="main">
+        <div id="colonnes-container" role="region" aria-label="Colonnes de classes">
+            <!-- Columns are dynamically generated by script.js -->
         </div>
     </main>
 
-    <!-- Fenêtre Pop-up des Paramètres -->
+    <!-- Settings Modal -->
     <div class="modal hidden" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
         <div class="modal-content">
-            <span class="close" title="Fermer">×</span>
+            <button class="close" title="Fermer" aria-label="Fermer la fenêtre des paramètres">×</button>
             <h2 id="settings-modal-title">Paramètres</h2>
+            
             <section class="settings-section">
                 <h3>Télécharger le modèle au format CSV</h3>
                 <p>Le fichier doit contenir : Classe, Élève (NOM Prénom), Sexe (M/F), Moyenne (Décimale avec point), LV1, LV2, Option1, Option2, Option3, Compatible (NOM Prénom), Incompatible (NOM Prénom).</p>
-                <button type="button" id="download-template" class="btn"><i class="fa-regular fa-circle-down"></i> Modèle CSV </button>
-                <input type="file" id="csv-file" accept=".csv" class="hidden">
-            </section>       
+                <button type="button" id="download-template" class="btn btn-primary" aria-describedby="download-template-desc">
+                    <i class="fa-regular fa-circle-down" aria-hidden="true"></i>
+                    <span>Modèle CSV</span>
+                </button>
+                <span id="download-template-desc" class="sr-only">Télécharger un fichier modèle CSV avec les colonnes requises</span>
+                <input type="file" id="csv-file" accept=".csv" class="hidden" aria-label="Sélectionner un fichier CSV">
+            </section>
+            
             <section class="settings-section">
                 <h3>Importer le fichier CSV</h3>
                 <p>Importer la liste des élèves correctement complétée.</p>
-                <button type="button" id="import-csv-button" class="btn"><i class="fa-regular fa-circle-up"></i> Importer </button>
+                <button type="button" id="import-csv-button" class="btn btn-primary" aria-describedby="import-csv-desc">
+                    <i class="fa-regular fa-circle-up" aria-hidden="true"></i>
+                    <span>Importer</span>
+                </button>
+                <span id="import-csv-desc" class="sr-only">Importer un fichier CSV contenant les données des élèves</span>
             </section>
+            
             <section class="settings-section">
                 <h3>Exporter les données</h3>
                 <p>Récupérer le fichier avec la liste des élèves répartis dans leur nouvelle classe.</p>
-                <button type="button" id="export-button" class="btn"><i class="fa-regular fa-share-from-square"></i> Exporter </button>
+                <button type="button" id="export-button" class="btn" aria-describedby="export-desc">
+                    <i class="fa-regular fa-share-from-square" aria-hidden="true"></i>
+                    <span>Exporter</span>
+                </button>
+                <span id="export-desc" class="sr-only">Exporter les données actuelles vers un fichier CSV</span>
             </section>
+            
             <section class="settings-section">
-                    <h3>Effacer les données</h3>
-                    <p>Remettre à zéro l'affichage de toutes les données du navigateur pour répartir de nouvelles classes</p>
-                    <button type="button" id="clear-data-button" class="btn-del"><i class="fas fa-trash-alt"></i> Effacer </button>
+                <h3>Effacer les données</h3>
+                <p>Remettre à zéro l'affichage de toutes les données du navigateur pour répartir de nouvelles classes</p>
+                <button type="button" id="clear-data-button" class="btn-del" aria-describedby="clear-data-desc">
+                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                    <span>Effacer</span>
+                </button>
+                <span id="clear-data-desc" class="sr-only">Supprimer toutes les données stockées localement</span>
             </section>
         </div>
     </div>
 
-    <!-- Fenêtre Pop-up du formulaire Elève (Ajouter/Modifier) -->
+    <!-- Student Form Modal -->
     <div class="modal hidden" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-content">
-            <span class="close" title="Fermer">×</span>
+            <button class="close" title="Fermer" aria-label="Fermer le formulaire">×</button>
             <h2 id="modal-title"></h2>
-            <form id="eleve-form" name="eleve-form">
+            
+            <form id="eleve-form" name="eleve-form" novalidate>
                 <div class="form-row">
                     <label for="classe">Classe :</label>
-                    <input id="classe" placeholder="Ex : 2nde1" type="text">
+                    <input id="classe" placeholder="Ex : 2nde1" type="text" aria-describedby="classe-help">
+                    <span id="classe-help" class="sr-only">Saisir la classe d'origine de l'élève</span>
                 </div>
                 
-                <!-- Important: Consider separate Nom/Prénom fields for robustness -->
                 <div class="form-row">
                     <label for="eleve">NOM Prénom :</label>
-                    <input id="eleve" placeholder="NOM Prénom" required type="text">
+                    <input id="eleve" placeholder="NOM Prénom" required type="text" aria-describedby="eleve-help">
+                    <span id="eleve-help" class="sr-only">Saisir le nom et prénom de l'élève (obligatoire)</span>
                 </div>
 
-                <div class="radio-group">
-                    <span>Sexe :</span>
+                <fieldset class="radio-group">
+                    <legend>Sexe :</legend>
                     <div class="radio-options">
-                        <label><input name="sexe" required type="radio" value="M"> Masculin</label>
-                        <label><input name="sexe" required type="radio" value="F"> Féminin</label>
+                        <label>
+                            <input name="sexe" required type="radio" value="M" aria-describedby="sexe-help">
+                            <span>Masculin</span>
+                        </label>
+                        <label>
+                            <input name="sexe" required type="radio" value="F">
+                            <span>Féminin</span>
+                        </label>
                     </div>
-                </div>
+                    <span id="sexe-help" class="sr-only">Sélectionner le sexe de l'élève (obligatoire)</span>
+                </fieldset>
 
                 <div class="form-row">
-                    <label for="moyenne">Moyenne (0-20):</label>
-                    <input id="moyenne" placeholder="Ex : 12.5" required type="text">
+                    <label for="moyenne">Moyenne (0-20) :</label>
+                    <input id="moyenne" placeholder="Ex : 12.5" required type="text" 
+                           pattern="^(20(\.0+)?|1?[0-9](\.[0-9]+)?)$" 
+                           aria-describedby="moyenne-help">
+                    <span id="moyenne-help" class="sr-only">Saisir la moyenne générale entre 0 et 20 (obligatoire)</span>
                 </div>
 
                 <div class="form-row">
                     <label for="lv1">LV1 :</label>
-                    <input id="lv1" placeholder="Ex : ANGLAIS" type="text">
+                    <input id="lv1" placeholder="Ex : ANGLAIS" type="text" aria-describedby="lv1-help">
+                    <span id="lv1-help" class="sr-only">Saisir la première langue vivante</span>
                 </div>
 
                 <div class="form-row">
                     <label for="lv2">LV2 :</label>
-                    <input id="lv2" placeholder="Ex : ESPAGNOL" type="text">
+                    <input id="lv2" placeholder="Ex : ESPAGNOL" type="text" aria-describedby="lv2-help">
+                    <span id="lv2-help" class="sr-only">Saisir la deuxième langue vivante</span>
                 </div>
 
                 <div class="form-row">
                     <label for="option1">Option 1 :</label>
-                    <input id="option1" placeholder="Ex : LLC" type="text">
+                    <input id="option1" placeholder="Ex : LLC" type="text" aria-describedby="option1-help">
+                    <span id="option1-help" class="sr-only">Saisir la première option</span>
                 </div>
 
                 <div class="form-row">
                     <label for="option2">Option 2 :</label>
-                    <input id="option2" placeholder="Ex : LATIN" type="text">
+                    <input id="option2" placeholder="Ex : LATIN" type="text" aria-describedby="option2-help">
+                    <span id="option2-help" class="sr-only">Saisir la deuxième option</span>
                 </div>
 
                 <div class="form-row">
                     <label for="option3">Option 3 :</label>
-                    <input id="option3" placeholder="Ex : SECTION SPORTIVE" type="text">
+                    <input id="option3" placeholder="Ex : SECTION SPORTIVE" type="text" aria-describedby="option3-help">
+                    <span id="option3-help" class="sr-only">Saisir la troisième option</span>
                 </div>
 
                 <div class="form-row">
                     <label for="compatible">Compatibilité :</label>
-                    <input id="compatible" placeholder="NOM Prénom de l'élève à regrouper" type="text">
+                    <input id="compatible" placeholder="NOM Prénom de l'élève à regrouper" type="text" aria-describedby="compatible-help">
+                    <span id="compatible-help" class="sr-only">Saisir le nom d'un élève avec qui regrouper cet élève</span>
                 </div>
 
                 <div class="form-row">
                     <label for="incompatible">Incompatibilité :</label>
-                    <input id="incompatible" placeholder="NOM Prénom de l'élève incompatible" type="text">
+                    <input id="incompatible" placeholder="NOM Prénom de l'élève incompatible" type="text" aria-describedby="incompatible-help">
+                    <span id="incompatible-help" class="sr-only">Saisir le nom d'un élève à ne pas regrouper avec cet élève</span>
                 </div>
 
                 <div class="form-buttons">
-                    <button class="btn" type="submit">Enregistrer</button>
-                    <button class="btn-del hidden" id="delete-button" type="button">Supprimer</button>
+                    <button class="btn submit" type="submit">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        <span>Enregistrer</span>
+                    </button>
+                    <button class="btn-del hidden" id="delete-button" type="button">
+                        <i class="fas fa-trash" aria-hidden="true"></i>
+                        <span>Supprimer</span>
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- After the other modals, before the script tag -->
-    <!-- Fenêtre Pop-up de gestion des groupes -->
+    <!-- Groups Management Modal -->
     <div class="modal hidden" id="groups-modal" role="dialog" aria-modal="true" aria-labelledby="groups-modal-title">
         <div class="modal-content">
-            <span class="close" title="Fermer">×</span>
+            <button class="close" title="Fermer" aria-label="Fermer la gestion des groupes">×</button>
             <h2 id="groups-modal-title">Gestion des groupes</h2>
+            
             <div class="groups-container">
-                <div class="groups-controls">
+                <section class="groups-controls">
                     <div class="form-row">
                         <label for="group-name">Nom du groupe :</label>
-                        <input id="group-name" placeholder="Ex: Italien LV2" type="text">
-                    </div>
-                    <div class="form-row">
-                        <label>Couleur du groupe :</label>
-                        <div class="color-picker">
-                            <input type="radio" name="group-color" id="color-dark-purple" value="dark-purple">
-                            <label for="color-dark-purple" class="color-option dark-purple" title="Violet foncé"></label>
-
-                            <input type="radio" name="group-color" id="color-dark-blue" value="dark-blue">
-                            <label for="color-dark-blue" class="color-option dark-blue" title="Bleu foncé"></label>
-                            
-                            <input type="radio" name="group-color" id="color-light-blue" value="light-blue">
-                            <label for="color-light-blue" class="color-option light-blue" title="Bleu clair"></label>
-                            
-                            <input type="radio" name="group-color" id="color-dark-green" value="dark-green">
-                            <label for="color-dark-green" class="color-option dark-green" title="Vert foncé"></label>
-                            
-                            <input type="radio" name="group-color" id="color-light-green" value="light-green">
-                            <label for="color-light-green" class="color-option light-green" title="Vert clair"></label>
-                            
-                            <input type="radio" name="group-color" id="color-yellow" value="yellow">
-                            <label for="color-yellow" class="color-option yellow" title="Jaune"></label>
-                            
-                            <input type="radio" name="group-color" id="color-orange" value="orange">
-                            <label for="color-orange" class="color-option orange" title="Orange"></label>
-                            
-                            <input type="radio" name="group-color" id="color-light-red" value="light-red">
-                            <label for="color-light-red" class="color-option light-red" title="Rouge clair"></label>
-                            
-                            <input type="radio" name="group-color" id="color-dark-red" value="dark-red">
-                            <label for="color-dark-red" class="color-option dark-red" title="Rouge foncé"></label>
-                            
-                            <input type="radio" name="group-color" id="color-black" value="black">
-                            <label for="color-black" class="color-option black" title="Noir"></label>
-                        </div>
-                    </div>
-
-                    <div class="group-action-buttons">
-                        <button type="button" id="create-group-button" class="btn btn-create"><i class="fas fa-plus-circle"></i> Créer</button>
-                        <button type="button" id="modify-group-button" class="btn btn-modify hidden"><i class="fas fa-edit"></i> Modifier</button>
-                        <button type="button" id="cancel-edit-button" class="btn btn-cancel hidden"><i class="fas fa-times"></i> Annuler</button>
-                    </div>
-                </div>
-                <div class="groups-list-container">
-                    <h3>Groupes existants</h3>
-                    <ul id="groups-list">
-                        <!-- Les groupes seront ajoutés ici dynamiquement -->
-                    </ul>
-                </div>
-                <div class="groups-footer">
-                    <button type="button" id="validate-groups-button" class="btn">Valider</button>
-                </div>
-            </div>
-            
-            <!-- Interface détaillée du groupe (initialement cachée) -->
-            <div class="group-detail-container hidden" id="group-detail-view">
-                <button type="button" class="btn back-to-groups-button" id="back-to-groups-button">
-                    <i class="fas fa-arrow-left"></i> Retour à la liste
-                </button>
-                
-                <div class="group-detail-header">
-                    <h3 id="group-detail-name">Nom du groupe</h3>
-                    <p id="group-detail-info" class="group-detail-info"></p>
-                </div>
-                
-                <div class="group-columns-container">
-                    <!-- Colonne des membres du groupe -->
-                    <div class="group-column">
-                        <div class="group-column-header">
-                            <span>Membres du groupe</span>
-                            <span class="counter" id="group-members-counter">0 élèves</span>
-                        </div>
-                        <div class="group-column-content">
-                            <ul class="group-students-list" id="group-members-list">
-                                <!-- Les membres du groupe seront ajoutés ici dynamiquement -->
-                            </ul>
-                        </div>
+                        <input id="group-name" placeholder="Ex: Italien LV2" type="text" aria-describedby="group-name-help">
+                        <span id="group-name-help" class="sr-only">Saisir le nom du groupe à créer</span>
                     </div>
                     
-                    <!-- Colonne des autres élèves -->
-                    <div class="group-column">
-                        <div class="group-column-header">
+                    <fieldset class="form-row">
+                        <legend>Couleur du groupe :</legend>
+                        <div class="color-picker" role="radiogroup" aria-labelledby="color-picker-legend">
+                            <input type="radio" name="group-color" id="color-dark-purple" value="dark-purple">
+                            <label for="color-dark-purple" class="color-option dark-purple" title="Violet foncé" aria-label="Violet foncé"></label>
+
+                            <input type="radio" name="group-color" id="color-dark-blue" value="dark-blue">
+                            <label for="color-dark-blue" class="color-option dark-blue" title="Bleu foncé" aria-label="Bleu foncé"></label>
+                            
+                            <input type="radio" name="group-color" id="color-light-blue" value="light-blue">
+                            <label for="color-light-blue" class="color-option light-blue" title="Bleu clair" aria-label="Bleu clair"></label>
+                            
+                            <input type="radio" name="group-color" id="color-dark-green" value="dark-green">
+                            <label for="color-dark-green" class="color-option dark-green" title="Vert foncé" aria-label="Vert foncé"></label>
+                            
+                            <input type="radio" name="group-color" id="color-light-green" value="light-green">
+                            <label for="color-light-green" class="color-option light-green" title="Vert clair" aria-label="Vert clair"></label>
+                            
+                            <input type="radio" name="group-color" id="color-yellow" value="yellow">
+                            <label for="color-yellow" class="color-option yellow" title="Jaune" aria-label="Jaune"></label>
+                            
+                            <input type="radio" name="group-color" id="color-orange" value="orange">
+                            <label for="color-orange" class="color-option orange" title="Orange" aria-label="Orange"></label>
+                            
+                            <input type="radio" name="group-color" id="color-light-red" value="light-red">
+                            <label for="color-light-red" class="color-option light-red" title="Rouge clair" aria-label="Rouge clair"></label>
+                            
+                            <input type="radio" name="group-color" id="color-dark-red" value="dark-red">
+                            <label for="color-dark-red" class="color-option dark-red" title="Rouge foncé" aria-label="Rouge foncé"></label>
+                            
+                            <input type="radio" name="group-color" id="color-black" value="black">
+                            <label for="color-black" class="color-option black" title="Noir" aria-label="Noir"></label>
+                        </div>
+                    </fieldset>
+
+                    <div class="group-action-buttons">
+                        <button type="button" id="create-group-button" class="btn-create">
+                            <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                            <span>Créer</span>
+                        </button>
+                        <button type="button" id="modify-group-button" class="btn-modify hidden">
+                            <i class="fas fa-edit" aria-hidden="true"></i>
+                            <span>Modifier</span>
+                        </button>
+                        <button type="button" id="cancel-edit-button" class="btn-cancel hidden">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                            <span>Annuler</span>
+                        </button>
+                    </div>
+                </section>
+                
+                <section class="groups-list-container">
+                    <h3>Groupes existants</h3>
+                    <ul id="groups-list" role="list">
+                        <!-- Groups will be added here dynamically -->
+                    </ul>
+                </section>
+                
+                <footer class="groups-footer">
+                    <button type="button" id="validate-groups-button" class="btn">
+                        <i class="fas fa-check" aria-hidden="true"></i>
+                        <span>Valider</span>
+                    </button>
+                </footer>
+            </div>
+            
+            <!-- Detailed group view (initially hidden) -->
+            <div class="group-detail-container hidden" id="group-detail-view">
+                <button type="button" class="btn back-to-groups-button" id="back-to-groups-button">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    <span>Retour à la liste</span>
+                </button>
+                
+                <header class="group-detail-header">
+                    <h3 id="group-detail-name">Nom du groupe</h3>
+                    <p id="group-detail-info" class="group-detail-info"></p>
+                </header>
+                
+                <div class="group-columns-container">
+                    <!-- Group members column -->
+                    <section class="group-column">
+                        <header class="group-column-header">
+                            <span>Membres du groupe</span>
+                            <span class="counter" id="group-members-counter">0 élèves</span>
+                        </header>
+                        <div class="group-column-content">
+                            <ul class="group-students-list" id="group-members-list" role="list">
+                                <!-- Group members will be added here dynamically -->
+                            </ul>
+                            <div class="empty-list-message hidden" id="members-empty-message">
+                                Aucun membre dans ce groupe
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- Other students column -->
+                    <section class="group-column">
+                        <header class="group-column-header">
                             <span>Autres élèves</span>
                             <span class="counter" id="other-students-counter">0 élèves</span>
-                        </div>
+                        </header>
                         <div class="group-column-content">
-                            <ul class="group-students-list" id="other-students-list">
-                                <!-- Les autres élèves seront ajoutés ici dynamiquement -->
+                            <ul class="group-students-list" id="other-students-list" role="list">
+                                <!-- Other students will be added here dynamically -->
                             </ul>
+                            <div class="empty-list-message hidden" id="others-empty-message">
+                                Aucun autre élève disponible
+                            </div>
                         </div>
-                    </div>
+                    </section>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Link to the separated JavaScript file -->
+    <!-- JavaScript -->
     <script src="script.js" defer></script>
 
+    <!-- Error boundary for JavaScript errors -->
+    <script>
+        window.addEventListener('error', function(e) {
+            console.error('Application error:', e.error);
+            // Could show user-friendly error message here
+        });
+        
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+            // Could show user-friendly error message here
+        });
+    </script>
 </body>
 </html>
