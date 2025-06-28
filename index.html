@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Constitution des classes</title>
+    <link href="styles.css" rel="stylesheet">
+    <link href="group-modal.css" rel="stylesheet">
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <!-- SortableJS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+</head>
+
+<body>
+    <header class="header">
+        <h1>Liste des élèves <i id="toggle-icon" class="fas fa-chevron-left" title="Afficher/Masquer la colonne 'A placer'"></i></h1>
+        <div class="controls">
+            Afficher : 
+            <label class="toggle-average-label"><input type="checkbox" id="toggle-classe" checked> Classe</label>
+            <label class="toggle-average-label"><input type="checkbox" id="toggle-average" checked> Moyennes </label>
+            <label class="toggle-average-label"><input type="checkbox" id="toggle-lv1" checked> LV1</label>
+            <label class="toggle-average-label"><input type="checkbox" id="toggle-lv2" checked> LV2</label>
+            <label class="toggle-average-label"><input type="checkbox" id="toggle-option1" checked> Option1</label>
+            <label class="toggle-average-label"><input type="checkbox" id="toggle-option2" checked> Option2</label>
+            <label class="toggle-average-label"><input type="checkbox" id="toggle-option3" checked> Option3</label>
+            <button type="button" class="btn" id="add-column-button"><i class="fa fa-plus-square" aria-hidden="true"></i> Ajouter une classe</button>
+            <button type="button" class="btn" id="add-button"><i class="fa fa-user-plus" aria-hidden="true"></i> Ajouter un élève</button>
+            <button type="button" class="btn" id="groups-button"><i class="fa fa-users" aria-hidden="true"></i> Gérer les groupes</button>
+            <!-- Exemple pour les trois boutons -->
+            <button type="button" class="btn" id="sort-moyenne"><i class="fas fa-sort-numeric-down"></i> Tri par moyenne</button>
+            <button type="button" class="btn" id="sort-alphabetique"><i class="fas fa-sort-alpha-down"></i> Tri alphabétique</button>
+            <button type="button" class="btn" id="sort-classe"><i class="fas fa-sort"></i> Tri par classe</button>
+            <button type="button" class="btn" id="settings-button"><i class="fas fa-cog"></i> Paramètres</button>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div id="colonnes-container">
+            <!-- Les colonnes sont générées dynamiquement ici par script.js -->
+        </div>
+    </main>
+
+    <!-- Fenêtre Pop-up des Paramètres -->
+    <div class="modal hidden" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+        <div class="modal-content">
+            <span class="close" title="Fermer">×</span>
+            <h2 id="settings-modal-title">Paramètres</h2>
+            <section class="settings-section">
+                <h3>Télécharger le modèle au format CSV</h3>
+                <p>Le fichier doit contenir : Classe, Élève (NOM Prénom), Sexe (M/F), Moyenne (Décimale avec point), LV1, LV2, Option1, Option2, Option3, Compatible (NOM Prénom), Incompatible (NOM Prénom).</p>
+                <button type="button" id="download-template" class="btn"><i class="fa-regular fa-circle-down"></i> Modèle CSV </button>
+                <input type="file" id="csv-file" accept=".csv" class="hidden">
+            </section>       
+            <section class="settings-section">
+                <h3>Importer le fichier CSV</h3>
+                <p>Importer la liste des élèves correctement complétée.</p>
+                <button type="button" id="import-csv-button" class="btn"><i class="fa-regular fa-circle-up"></i> Importer </button>
+            </section>
+            <section class="settings-section">
+                <h3>Exporter les données</h3>
+                <p>Récupérer le fichier avec la liste des élèves répartis dans leur nouvelle classe.</p>
+                <button type="button" id="export-button" class="btn"><i class="fa-regular fa-share-from-square"></i> Exporter </button>
+            </section>
+            <section class="settings-section">
+                    <h3>Effacer les données</h3>
+                    <p>Remettre à zéro l'affichage de toutes les données du navigateur pour répartir de nouvelles classes</p>
+                    <button type="button" id="clear-data-button" class="btn-del"><i class="fas fa-trash-alt"></i> Effacer </button>
+            </section>
+        </div>
+    </div>
+
+    <!-- Fenêtre Pop-up du formulaire Elève (Ajouter/Modifier) -->
+    <div class="modal hidden" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content">
+            <span class="close" title="Fermer">×</span>
+            <h2 id="modal-title"></h2>
+            <form id="eleve-form" name="eleve-form">
+                <div class="form-row">
+                    <label for="classe">Classe :</label>
+                    <input id="classe" placeholder="Ex : 2nde1" type="text">
+                </div>
+                
+                <!-- Important: Consider separate Nom/Prénom fields for robustness -->
+                <div class="form-row">
+                    <label for="eleve">NOM Prénom :</label>
+                    <input id="eleve" placeholder="NOM Prénom" required type="text">
+                </div>
+
+                <div class="radio-group">
+                    <span>Sexe :</span>
+                    <div class="radio-options">
+                        <label><input name="sexe" required type="radio" value="M"> Masculin</label>
+                        <label><input name="sexe" required type="radio" value="F"> Féminin</label>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label for="moyenne">Moyenne (0-20):</label>
+                    <input id="moyenne" placeholder="Ex : 12.5" required type="text">
+                </div>
+
+                <div class="form-row">
+                    <label for="lv1">LV1 :</label>
+                    <input id="lv1" placeholder="Ex : ANGLAIS" type="text">
+                </div>
+
+                <div class="form-row">
+                    <label for="lv2">LV2 :</label>
+                    <input id="lv2" placeholder="Ex : ESPAGNOL" type="text">
+                </div>
+
+                <div class="form-row">
+                    <label for="option1">Option 1 :</label>
+                    <input id="option1" placeholder="Ex : LLC" type="text">
+                </div>
+
+                <div class="form-row">
+                    <label for="option2">Option 2 :</label>
+                    <input id="option2" placeholder="Ex : LATIN" type="text">
+                </div>
+
+                <div class="form-row">
+                    <label for="option3">Option 3 :</label>
+                    <input id="option3" placeholder="Ex : SECTION SPORTIVE" type="text">
+                </div>
+
+                <div class="form-row">
+                    <label for="compatible">Compatibilité :</label>
+                    <input id="compatible" placeholder="NOM Prénom de l'élève à regrouper" type="text">
+                </div>
+
+                <div class="form-row">
+                    <label for="incompatible">Incompatibilité :</label>
+                    <input id="incompatible" placeholder="NOM Prénom de l'élève incompatible" type="text">
+                </div>
+
+                <div class="form-buttons">
+                    <button class="btn" type="submit">Enregistrer</button>
+                    <button class="btn-del hidden" id="delete-button" type="button">Supprimer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- After the other modals, before the script tag -->
+    <!-- Fenêtre Pop-up de gestion des groupes -->
+    <div class="modal hidden" id="groups-modal" role="dialog" aria-modal="true" aria-labelledby="groups-modal-title">
+        <div class="modal-content">
+            <span class="close" title="Fermer">×</span>
+            <h2 id="groups-modal-title">Gestion des groupes</h2>
+            <div class="groups-container">
+                <div class="groups-controls">
+                    <div class="form-row">
+                        <label for="group-name">Nom du groupe :</label>
+                        <input id="group-name" placeholder="Ex: Italien LV2" type="text">
+                    </div>
+                    <div class="form-row">
+                        <label>Couleur du groupe :</label>
+                        <div class="color-picker">
+                            <input type="radio" name="group-color" id="color-dark-purple" value="dark-purple">
+                            <label for="color-dark-purple" class="color-option dark-purple" title="Violet foncé"></label>
+
+                            <input type="radio" name="group-color" id="color-dark-blue" value="dark-blue">
+                            <label for="color-dark-blue" class="color-option dark-blue" title="Bleu foncé"></label>
+                            
+                            <input type="radio" name="group-color" id="color-light-blue" value="light-blue">
+                            <label for="color-light-blue" class="color-option light-blue" title="Bleu clair"></label>
+                            
+                            <input type="radio" name="group-color" id="color-dark-green" value="dark-green">
+                            <label for="color-dark-green" class="color-option dark-green" title="Vert foncé"></label>
+                            
+                            <input type="radio" name="group-color" id="color-light-green" value="light-green">
+                            <label for="color-light-green" class="color-option light-green" title="Vert clair"></label>
+                            
+                            <input type="radio" name="group-color" id="color-yellow" value="yellow">
+                            <label for="color-yellow" class="color-option yellow" title="Jaune"></label>
+                            
+                            <input type="radio" name="group-color" id="color-orange" value="orange">
+                            <label for="color-orange" class="color-option orange" title="Orange"></label>
+                            
+                            <input type="radio" name="group-color" id="color-light-red" value="light-red">
+                            <label for="color-light-red" class="color-option light-red" title="Rouge clair"></label>
+                            
+                            <input type="radio" name="group-color" id="color-dark-red" value="dark-red">
+                            <label for="color-dark-red" class="color-option dark-red" title="Rouge foncé"></label>
+                            
+                            <input type="radio" name="group-color" id="color-black" value="black">
+                            <label for="color-black" class="color-option black" title="Noir"></label>
+                        </div>
+                    </div>
+
+                    <div class="group-action-buttons">
+                        <button type="button" id="create-group-button" class="btn btn-create"><i class="fas fa-plus-circle"></i> Créer</button>
+                        <button type="button" id="modify-group-button" class="btn btn-modify hidden"><i class="fas fa-edit"></i> Modifier</button>
+                        <button type="button" id="cancel-edit-button" class="btn btn-cancel hidden"><i class="fas fa-times"></i> Annuler</button>
+                    </div>
+                </div>
+                <div class="groups-list-container">
+                    <h3>Groupes existants</h3>
+                    <ul id="groups-list">
+                        <!-- Les groupes seront ajoutés ici dynamiquement -->
+                    </ul>
+                </div>
+                <div class="groups-footer">
+                    <button type="button" id="validate-groups-button" class="btn">Valider</button>
+                </div>
+            </div>
+            
+            <!-- Interface détaillée du groupe (initialement cachée) -->
+            <div class="group-detail-container hidden" id="group-detail-view">
+                <button type="button" class="btn back-to-groups-button" id="back-to-groups-button">
+                    <i class="fas fa-arrow-left"></i> Retour à la liste
+                </button>
+                
+                <div class="group-detail-header">
+                    <h3 id="group-detail-name">Nom du groupe</h3>
+                    <p id="group-detail-info" class="group-detail-info"></p>
+                </div>
+                
+                <div class="group-columns-container">
+                    <!-- Colonne des membres du groupe -->
+                    <div class="group-column">
+                        <div class="group-column-header">
+                            <span>Membres du groupe</span>
+                            <span class="counter" id="group-members-counter">0 élèves</span>
+                        </div>
+                        <div class="group-column-content">
+                            <ul class="group-students-list" id="group-members-list">
+                                <!-- Les membres du groupe seront ajoutés ici dynamiquement -->
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Colonne des autres élèves -->
+                    <div class="group-column">
+                        <div class="group-column-header">
+                            <span>Autres élèves</span>
+                            <span class="counter" id="other-students-counter">0 élèves</span>
+                        </div>
+                        <div class="group-column-content">
+                            <ul class="group-students-list" id="other-students-list">
+                                <!-- Les autres élèves seront ajoutés ici dynamiquement -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Link to the separated JavaScript file -->
+    <script src="script.js" defer></script>
+
+</body>
+</html>
