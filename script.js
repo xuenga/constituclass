@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.eleves = [];
             this.colonnes = ['A placer'];
             this.currentEleveId = null;
-        this.sortOrderClasse = 1;
 
             // Cache DOM elements
             this.colonnesContainer = document.getElementById('colonnes-container');
@@ -27,7 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
             this.initializeEventListeners();
             this.setupLocalStorage(); // Charge les données et applique les états des cases à cocher
             this.ensureDefaultColumn();
-            // Ne pas appeler updateToggleStates() ici pour éviter d'écraser les états chargés
+            this.setupFiltering(); // Initialiser la recherche et les filtres
+            window.app = this; // Attacher l'instance à window pour l'accès global
             this.afficherEleves(); // Calls relationship icon updates internally
         }
 
@@ -46,13 +46,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 this.creerEtTelechargerModeleCSV();
             });
-            document.getElementById('sort-alphabetique').addEventListener('click', () => this.trierAlphabetiquement());
-            document.getElementById('sort-moyenne').addEventListener('click', () => this.trierParMoyenne());
-            document.getElementById('sort-classe').addEventListener('click', () => {
-                this.sortParClasse();
-            });
+            document.getElementById('sort-button').addEventListener('click', () => this.trierAlphabetiquement());
+            document.getElementById('sort-avg-button').addEventListener('click', () => this.trierParMoyenne());
             this.deleteButton.addEventListener('click', () => this.supprimerEleve());
             document.getElementById('clear-data-button').addEventListener('click', () => this.effacerDonneesLocales());
+            document.getElementById('search-toggle').addEventListener('click', () => this.toggleSearch());
 
             this.toggleAverageCheckbox.addEventListener('change', () => {
                 this.toggleVisibility('.moyenne-span', this.toggleAverageCheckbox.checked);
@@ -79,43 +77,111 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.updateToggleStates(); // Sauvegarder l'état dans localStorage
             });
 
-            document.getElementById('toggle-classe').addEventListener('change', (e) => {
-                localStorage.setItem('classeVisible', e.target.checked);
-                this.toggleVisibility('.classe-span', e.target.checked);
-                this.updateToggleStates();
-            });
-
             if (this.toggleIcon) {
                 this.toggleIcon.addEventListener('click', () => this.toggleAplacerColumn());
             }
 
-            // Add a single, delegated event listener for option sorting clicks.
-            // This is more efficient than adding a listener every time the summary is updated.
-            this.colonnesContainer.addEventListener('click', (event) => {
-                const target = event.target.closest('.compteur-item');
-                const summaryContainer = target ? target.closest('.choix-a-placer') : null;
-                const columnElement = summaryContainer ? summaryContainer.closest('.colonne') : null;
+            // --- Modale "Ajouter une classe" ---
+            document.getElementById('add-column-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.confirmerAjoutColonne();
+            });
+            document.getElementById('cancel-column-button').addEventListener('click', () => this.fermerModalColonne());
+            document.getElementById('close-add-column').addEventListener('click', () => this.fermerModalColonne());
+            document.getElementById('new-column-name').addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') this.fermerModalColonne();
+            });
+        }
 
-                if (target && columnElement) {
-                    const optionKey = target.dataset.optionKey;
-                    const optionType = target.dataset.optionType;
-                    const nomColonne = columnElement.dataset.nom;
-                    
-                    if (optionKey && optionType && nomColonne) {
-                        this.trierParOption(optionKey, optionType, nomColonne);
-                    }
+        setupFiltering() {
+            const searchInput = document.getElementById('global-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', () => this.applyFilters());
+            }
+
+            const filterTags = document.querySelectorAll('.filter-tag');
+            filterTags.forEach(tag => {
+                tag.addEventListener('click', () => {
+                    tag.classList.toggle('active');
+                    this.applyFilters();
+                });
+            });
+
+            const resetBtn = document.getElementById('reset-filters-btn');
+            if (resetBtn) {
+                resetBtn.addEventListener('click', () => {
+                    if (searchInput) searchInput.value = '';
+                    filterTags.forEach(tag => tag.classList.remove('active'));
+                    this.applyFilters();
+                });
+            }
+        }
+
+        applyFilters() {
+            const searchInput = document.getElementById('global-search');
+            const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            
+            const activeFilters = Array.from(document.querySelectorAll('.filter-tag.active'))
+                .map(tag => tag.dataset.filter);
+
+            const eleveItems = document.querySelectorAll('.eleve-item');
+            
+            eleveItems.forEach(item => {
+                const id = item.dataset.id;
+                const eleve = this.eleves.find(e => String(e.id) === String(id));
+                
+                if (!eleve) return;
+
+                let matchesSearch = true;
+                if (query) {
+                    const searchBuffer = [
+                        eleve.nom || '',
+                        eleve.prenom || '',
+                        eleve.lv1 || '',
+                        eleve.lv2 || '',
+                        ...(eleve.options || [])
+                    ].join(' ').toLowerCase();
+                    matchesSearch = searchBuffer.includes(query);
                 }
+
+                let matchesFilters = true;
+                if (activeFilters.length > 0) {
+                    matchesFilters = activeFilters.every(filter => {
+                        if (filter === 'F') return eleve.sexe === 'F';
+                        if (filter === 'M') return eleve.sexe === 'M';
+                        if (filter === 'top') return parseFloat(eleve.moyenne) > 15;
+                        if (filter === 'grouped') {
+                            const groups = typeof findGroupsForStudent === 'function' 
+                                ? findGroupsForStudent(eleve.id) 
+                                : this.findGroupsForStudent(eleve.id);
+                            return groups.length > 0;
+                        }
+                        return true;
+                    });
+                }
+
+                if (matchesSearch && matchesFilters) {
+                    item.classList.remove('filtered');
+                } else {
+                    item.classList.add('filtered');
+                }
+            });
+
+            // Re-ordering logic: Matching students to the top of their lists
+            const containers = document.querySelectorAll('.eleves-liste');
+            containers.forEach(container => {
+                const items = Array.from(container.children);
+                const matches = items.filter(item => !item.classList.contains('filtered'));
+                const nonMatches = items.filter(item => item.classList.contains('filtered'));
+                
+                // Append matches first, then non-matches (maintains relative order within groups)
+                matches.concat(nonMatches).forEach(item => container.appendChild(item));
             });
         }
 
         setupLocalStorage() {
             try {
                 // Charger les données des élèves et des colonnes
-                localStorage.getItem('classeVisible') === null && localStorage.setItem('classeVisible', 'true');
-                // Synchroniser la checkbox et la visibilité avec localStorage au démarrage
-                const classeVisible = localStorage.getItem('classeVisible') === 'true';
-                document.getElementById('toggle-classe').checked = classeVisible;
-                this.toggleVisibility('.classe-span', classeVisible);
                 const savedData = localStorage.getItem('gestionEleves');
                 if (savedData) {
                     const data = JSON.parse(savedData);
@@ -183,9 +249,28 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        toggleSearch() {
+            const container = document.getElementById('search-container');
+            const toggleBtn = document.getElementById('search-toggle');
+            const searchInput = document.getElementById('global-search');
+            
+            if (container) {
+                const isOpening = container.classList.contains('collapsed');
+                container.classList.toggle('collapsed');
+                toggleBtn.classList.toggle('active');
+                
+                if (isOpening && searchInput) {
+                    setTimeout(() => searchInput.focus(), 300);
+                } else if (!isOpening) {
+                    // Facultatif : vider la recherche à la fermeture
+                    if (searchInput) searchInput.value = '';
+                    this.applyFilters();
+                }
+            }
+        }
+
         updateToggleStates() {
             // Appliquer les états de visibilité
-            this.toggleVisibility('.classe-span', localStorage.getItem('classeVisible') === 'true');
             this.toggleVisibility('.moyenne-span', this.toggleAverageCheckbox.checked);
             this.toggleVisibility('.lv1-span', this.toggleLv1Checkbox.checked);
             this.toggleVisibility('.lv2-span', this.toggleLv2Checkbox.checked);
@@ -221,20 +306,16 @@ document.addEventListener('DOMContentLoaded', () => {
              this.toggleIcon.title = isHidden ? "Afficher la colonne 'A placer'" : "Masquer la colonne 'A placer'";
         }
 
-        // Get groups associated with a student
-        getStudentGroups(studentId) {
-            // Initialize empty array if student has no groups
-            if (!this.eleves || !studentId) return [];
+        // Get groups associated with a student using the global studentGroups source
+        findGroupsForStudent(studentId) {
+            if (typeof studentGroups === 'undefined' || !studentId) return [];
             
-            // Find the student by ID
-            const student = this.eleves.find(e => e.id === studentId);
-            if (!student || !student.groups) return [];
-            
-            // Return the student's groups, ensuring each has required properties
-            return student.groups.map(group => ({
-                name: group.name || '',
-                color: group.color || 'dark-blue'
-            }));
+            return studentGroups
+                .filter(group => group.students.includes(String(studentId)) || group.students.includes(Number(studentId)))
+                .map(group => ({
+                    name: group.name || '',
+                    color: group.color || 'dark-blue'
+                }));
         }
 
         // --- Core Data Operations ---
@@ -247,6 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
                 this.mettreAJourCompteur();
                 this.updateStudentRelationshipIcons(); // Update relationship icons
+                if (typeof updateStudentCards === 'function') updateStudentCards(); // Sync group indicators
             } catch (error) {
                 console.error("Error saving data:", error);
                 alert("Erreur sauvegarde données.");
@@ -272,8 +354,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const showAverages = this.toggleAverageCheckbox.checked;
             const showLv1 = this.toggleLv1Checkbox.checked;
             const showLv2 = this.toggleLv2Checkbox.checked;
-            // Ajouter la vérification de l'état de la checkbox classe
-            const showClasse = document.getElementById('toggle-classe').checked;
 
             const studentsByColumn = {};
             this.colonnes.forEach(nom => {
@@ -312,10 +392,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     strong.className = eleve.sexe === 'M' ? 'nom-bleu' : (eleve.sexe === 'F' ? 'nom-rose' : '');
                     li.appendChild(strong);
 
-                    // Ajouter l'affichage de la classe avant la moyenne
-                    const classeSpan = this.createClasseSpan(eleve.classe, showClasse);
-                    if (classeSpan) li.appendChild(classeSpan);
-
                     const moyenneSpan = this.createMoyenneSpan(eleve.moyenne, showAverages);
                     if (moyenneSpan) li.appendChild(moyenneSpan);
                     const lv1Span = this.createLangSpan(eleve.lv1, 'lv1', showLv1);
@@ -335,25 +411,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const option3Span = this.createOptionSpan(eleve.options[2], 'option3', showOption3);
                     if (option3Span) li.appendChild(option3Span);
 
-                    // Intégration directe des indicateurs de groupe
-                    const studentGroups = this.getStudentGroups(eleve.id);
-                    if (studentGroups && studentGroups.length > 0) {
-                        // Déplacer l'ajout des indicateurs avant l'application des classes
-                        studentGroups.forEach(group => {
-                            const indicator = document.createElement('span');
-                            indicator.className = `group-indicator ${group.color || 'dark-blue'}`;
-                            indicator.textContent = group.name;
-                            indicator.title = `Groupe: ${group.name}`;
-                            indicator.style.backgroundColor = `var(--${group.color || 'dark-blue'}-color)`;
-                            li.appendChild(indicator);
-                        });
-                        
-                        // Appliquer les classes après avoir ajouté tous les éléments
-                        li.classList.add('grouped');
-                        if (studentGroups[0] && studentGroups[0].color) {
-                            li.classList.add(studentGroups[0].color);
-                        }
-                    }
+                    // Les indicateurs de groupe sont maintenant gérés de manière centralisée
+                    // par updateStudentCards() après le rendu pour éviter les doublons ou désynchronisations.
+                    
+                    li.ondblclick = () => this.ouvrirModal('modifier', eleve);
 
                     li.ondblclick = () => this.ouvrirModal('modifier', eleve);
                     fragment.appendChild(li);
@@ -363,6 +424,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             this.updateStudentRelationshipIcons(); // Update icons after DOM is built
             this.mettreAJourCompteur();
+            if (typeof updateStudentCards === 'function') updateStudentCards(); // Re-add group indicators to the grid
+            this.applyFilters(); // Réappliquer les filtres après le rendu
         }
 
         createMoyenneSpan(moyenneValue, show) {
@@ -416,15 +479,6 @@ document.addEventListener('DOMContentLoaded', () => {
             span.title = option; // Affiche l'option complète au survol
             return span;
         }
-        
-        createClasseSpan(classe, show) {
-            if (!classe) return null;
-            const classeSpan = document.createElement('span');
-            classeSpan.classList.add('classe-span');
-            classeSpan.style.display = show ? 'inline' : 'none';
-            classeSpan.textContent = classe;
-            return classeSpan;
-        }
 
         // ## CORRECTED NAME PARSING HERE ##
         sauvegarderEleve(e) {
@@ -464,7 +518,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const eleveData = {
                 id: this.currentEleveId || Date.now(),
-                classe: document.getElementById('classe').value,
                 nom: nom,       // Use correctly parsed NOM
                 prenom: prenom, // Use correctly parsed Prénom
                 sexe: sexeInput.value,
@@ -512,122 +565,99 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         trierAlphabetiquement() {
-            // Préserver les informations de groupe avant le tri
-            const groupInfo = this.eleves.map(e => ({
-                id: e.id,
-                groups: e.groups ? JSON.parse(JSON.stringify(e.groups)) : []
-            }));
+            // Utiliser une Map pour O(1) lookup au lieu de .find() dans une boucle O(n)
+            const groupMap = new Map();
+            this.eleves.forEach(e => {
+                if (e.groups) groupMap.set(e.id, JSON.parse(JSON.stringify(e.groups)));
+            });
 
             this.eleves.sort((a, b) => {
-                // Sort by NOM, then Prénom
                 const nomCompare = (a.nom || '').localeCompare(b.nom || '', 'fr', { sensitivity: 'base' });
                 return nomCompare !== 0 ? nomCompare : (a.prenom || '').localeCompare(b.prenom || '', 'fr', { sensitivity: 'base' });
             });
 
-            // Restaurer les informations de groupe après le tri
+            // Restauration O(n)
             this.eleves.forEach(eleve => {
-                const savedInfo = groupInfo.find(info => info.id === eleve.id);
-                if (savedInfo) {
-                    eleve.groups = savedInfo.groups;
-                }
+                if (groupMap.has(eleve.id)) eleve.groups = groupMap.get(eleve.id);
             });
 
             this.sauvegarderDonnees();
-            this.rafraichirToutesLesColonnes();
-            this.updateToggleStates(); // <-- Ajouté pour réappliquer la visibilité après tri alpha
-            // Appeler updateStudentCards pour mettre à jour les indicateurs de groupe
-            updateStudentCards();
+            this.afficherEleves();
+            if (typeof updateStudentCards === 'function') updateStudentCards();
             this.triggerSortAnimation();
         }
 
-
-
         trierParMoyenne() {
-            // Préserver les informations de groupe avant le tri
-            const groupInfo = this.eleves.map(e => ({
-                id: e.id,
-                groups: e.groups ? JSON.parse(JSON.stringify(e.groups)) : []
-            }));
+            const groupMap = new Map();
+            this.eleves.forEach(e => {
+                if (e.groups) groupMap.set(e.id, JSON.parse(JSON.stringify(e.groups)));
+            });
 
             this.eleves.sort((a, b) => {
                 const moyenneA = parseFloat(a.moyenne), moyenneB = parseFloat(b.moyenne);
-                // Handle NaN and sort descending
                 if (isNaN(moyenneA) && isNaN(moyenneB)) return 0;
                 if (isNaN(moyenneA)) return 1;
                 if (isNaN(moyenneB)) return -1;
                 return moyenneB - moyenneA;
             });
 
-            // Restaurer les informations de groupe après le tri
             this.eleves.forEach(eleve => {
-                const savedInfo = groupInfo.find(info => info.id === eleve.id);
-                if (savedInfo) {
-                    eleve.groups = savedInfo.groups;
-                }
+                if (groupMap.has(eleve.id)) eleve.groups = groupMap.get(eleve.id);
             });
 
             this.sauvegarderDonnees();
-            this.rafraichirToutesLesColonnes();
-            this.updateToggleStates(); // <-- Ajouté pour réappliquer la visibilité après tri moyenne
-            // Appeler updateStudentCards pour mettre à jour les indicateurs de groupe
-            updateStudentCards();
+            this.afficherEleves();
+            if (typeof updateStudentCards === 'function') updateStudentCards();
             this.triggerSortAnimation();
         }
 
         triggerSortAnimation() {
              document.querySelectorAll('.colonne').forEach(col => {
-                 col.classList.add('tri-animation');
-                 setTimeout(() => {
-                     col.classList.remove('tri-animation');
-                     updateStudentCards();
-                 }, 500);
+                 col.classList.add('tri-animation'); setTimeout(() => col.classList.remove('tri-animation'), 500);
              });
-        }
-
-        sortParClasse() {
-            // Préserver les informations de groupe avant le tri
-            const groupInfo = this.eleves.map(e => ({
-                id: e.id,
-                groups: e.groups ? JSON.parse(JSON.stringify(e.groups)) : []
-            }));
-
-            this.eleves.sort((a, b) => {
-                const classeCompare = a.classe.localeCompare(b.classe);
-                return classeCompare === 0 ? a.nom.localeCompare(b.nom) : classeCompare * this.sortOrderClasse;
-            });
-
-            // Restaurer les informations de groupe après le tri
-            this.eleves.forEach(eleve => {
-                const savedInfo = groupInfo.find(info => info.id === eleve.id);
-                if (savedInfo) {
-                    eleve.groups = savedInfo.groups;
-                }
-            });
-
-            this.sortOrderClasse *= -1;
-            this.sauvegarderDonnees();
-            this.rafraichirToutesLesColonnes();
-            this.updateToggleStates();
-            
-            // Déplacer l'appel à triggerSortAnimation() avant updateStudentCards()
-            this.triggerSortAnimation();
-            
-            // Ajouter un délai pour s'assurer que l'animation est terminée
-            setTimeout(() => {
-                updateStudentCards();
-            }, 600); // 600ms correspond à la durée de l'animation (500ms) + une marge
         }
 
         // --- Column Management ---
 
         ajouterColonne() {
-            const nomColonne = prompt("Nom nouvelle classe:");
-            if (nomColonne?.trim()) {
-                const cleanName = nomColonne.trim();
-                if (!this.colonnes.includes(cleanName)) {
-                    this.colonnes.push(cleanName); this.creerColonneDOM(cleanName); this.sauvegarderDonnees();
-                } else { alert(`Colonne "${cleanName}" existe déjà.`); }
+            // Ouvre la modale stylisée au lieu du prompt() natif
+            const input = document.getElementById('new-column-name');
+            const error = document.getElementById('add-column-error');
+            input.value = '';
+            error.textContent = '';
+            error.classList.add('hidden');
+            document.getElementById('add-column-modal').classList.remove('hidden');
+            setTimeout(() => input.focus(), 50);
+        }
+
+        fermerModalColonne() {
+            document.getElementById('add-column-modal').classList.add('hidden');
+        }
+
+        confirmerAjoutColonne() {
+            const input = document.getElementById('new-column-name');
+            const error = document.getElementById('add-column-error');
+            const cleanName = input.value.trim();
+
+            if (!cleanName) {
+                this.showColumnError(error, 'Le nom de la classe ne peut pas être vide.');
+                return;
             }
+            if (this.colonnes.includes(cleanName)) {
+                this.showColumnError(error, `La classe « ${cleanName} » existe déjà.`);
+                return;
+            }
+
+            this.colonnes.push(cleanName);
+            this.creerColonneDOM(cleanName);
+            this.sauvegarderDonnees();
+            this.fermerModalColonne();
+        }
+
+        showColumnError(el, msg) {
+            el.textContent = msg;
+            el.classList.remove('hidden');
+            el.closest('form').querySelector('input').focus();
         }
 
         creerColonneDOM(nom) {
@@ -638,28 +668,23 @@ document.addEventListener('DOMContentLoaded', () => {
              if (nom !== 'A placer') {
                  titre.contentEditable = "true";
                  titre.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); titre.blur(); } });
-                 titre.addEventListener('blur', () => this.renommerColonne(nom, titre.textContent.trim()));
+                 titre.addEventListener('blur', (e) => {
+                     const currentColName = e.target.closest('.colonne').dataset.nom;
+                     this.renommerColonne(currentColName, titre.textContent.trim());
+                 });
              } header.appendChild(titre);
              const compteur = document.createElement('span'); compteur.className = 'compteur'; compteur.dataset.colonne = nom;
              compteur.innerHTML = ' <strong> 0 <i class="fa fa-female icon-female"></i> 0 <i class="fa fa-male icon-male"></i> = 0 </strong> ';
              header.appendChild(compteur);
              
-             const moyenneDiv = document.createElement('div'); moyenneDiv.className = 'moyenne-generale';
-             moyenneDiv.textContent = 'Moy.= 0.00';
+             const moyenneDiv = document.createElement('div'); moyenneDiv.className = 'moyenne-generale'; 
+             moyenneDiv.textContent = 'Moy.= 0.00'; 
              header.appendChild(moyenneDiv);
-
              if (nom !== 'A placer') {
                  const btnSuppr = document.createElement('button'); btnSuppr.type = 'button'; btnSuppr.className = 'btn-supprimer-colonne';
                  btnSuppr.innerHTML = '×'; btnSuppr.title = `Supprimer ${nom}`;
                  btnSuppr.addEventListener('click', () => this.supprimerColonne(nom)); header.appendChild(btnSuppr);
-             }
-             colonne.appendChild(header);
-
-             // Add the new div for options summary to each column
-             const choixAPlacerDiv = document.createElement('div');
-             choixAPlacerDiv.className = 'choix-a-placer'; // Use class for styling
-             colonne.appendChild(choixAPlacerDiv);
-
+             } colonne.appendChild(header);
              const liste = document.createElement('ul'); liste.className = 'eleves-liste'; liste.dataset.colonne = nom; colonne.appendChild(liste);
              this.colonnesContainer.appendChild(colonne); this.initSortable(liste, nom); return colonne;
         }
@@ -780,7 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const elevesCol = this.eleves.filter(e => e.colonne === nom); const n = elevesCol.length;
                 const f = elevesCol.filter(e => e.sexe === 'F').length; const g = n - f; // Calculate boys based on total and girls
                 const compteur = document.querySelector(`.compteur[data-colonne="${nom}"]`);
-                if (compteur) compteur.innerHTML = `<strong>${n} = ${f} <i class="fa fa-female icon-female"></i> + ${g} <i class="fa fa-male icon-male"></i></strong>`;
+                if (compteur) compteur.innerHTML = `<strong>${f}<i class="fa fa-female icon-female"></i> ${g}<i class="fa fa-male icon-male"></i> T=${n}</strong>`;
                 const moyenneDiv = document.querySelector(`.colonne[data-nom="${nom}"] .moyenne-generale`);
                 if (moyenneDiv) {
                      const totalM = elevesCol.reduce((s, e) => s + (parseFloat(e.moyenne) || 0), 0);
@@ -805,48 +830,50 @@ document.addEventListener('DOMContentLoaded', () => {
                      else if (moyenneGenerale < 18) moyenneDiv.classList.add('moyenne-16-18');
                      else if (moyenneGenerale <= 20) moyenneDiv.classList.add('moyenne-18-20');
                 }
-                this.updateColumnSummary(nom);
             });
         }
 
         // --- Modal Management ---
 
-        // --- Modal Management ---
+        ouvrirModal(action, eleve = null) {
+            const titleSpan = this.modalTitle.querySelector('span');
+            const newTitle = action === 'ajouter' ? 'Ajouter un élève' : 'Modifier un élève';
+            
+            if (titleSpan) {
+                titleSpan.textContent = newTitle;
+            } else {
+                this.modalTitle.textContent = newTitle;
+            }
 
-        // Helper method to fill the form with student data
-    remplirFormulaire(eleve) {
-        document.getElementById('classe').value = eleve.classe || '';
-        document.getElementById('eleve').value = `${eleve.nom || ''} ${eleve.prenom || ''}`.trim();
-        const sexeRadio = this.eleveForm.querySelector(`input[name="sexe"][value="${eleve.sexe}"]`);
-        if (sexeRadio) sexeRadio.checked = true; // Use property for live state
-        document.getElementById('moyenne').value = eleve.moyenne || '';
-        document.getElementById('lv1').value = eleve.lv1 || ''; 
-        document.getElementById('lv2').value = eleve.lv2 || '';
-        document.getElementById('option1').value = eleve.options?.[0] || '';
-        document.getElementById('option2').value = eleve.options?.[1] || '';
-        document.getElementById('option3').value = eleve.options?.[2] || '';
-        document.getElementById('compatible').value = eleve.options?.[3] || '';
-        document.getElementById('incompatible').value = eleve.options?.[4] || '';
-    }
-
-    ouvrirModal(action, eleve = null) {
-            this.modalTitle.textContent = action === 'ajouter' ? 'Ajouter un élève' : 'Modifier un élève';
             this.eleveForm.reset();
             // Ensure radio buttons are fully reset visually
             this.eleveForm.querySelectorAll('input[name="sexe"]').forEach(radio => radio.checked = false);
 
             if (action === 'modifier' && eleve) {
                 this.currentEleveId = eleve.id;
-                // Use the helper method to fill the form
-                this.remplirFormulaire(eleve);
+                // Populate with NOM Prénom format
+                document.getElementById('eleve').value = `${eleve.nom || ''} ${eleve.prenom || ''}`.trim();
+                const sexeRadio = this.eleveForm.querySelector(`input[name="sexe"][value="${eleve.sexe}"]`);
+                if (sexeRadio) sexeRadio.checked = true; // Use property for live state
+                document.getElementById('moyenne').value = eleve.moyenne || '';
+                document.getElementById('lv1').value = eleve.lv1 || ''; document.getElementById('lv2').value = eleve.lv2 || '';
+                document.getElementById('option1').value = eleve.options?.[0] || '';
+                document.getElementById('option2').value = eleve.options?.[1] || '';
+                document.getElementById('option3').value = eleve.options?.[2] || '';
+                document.getElementById('compatible').value = eleve.options?.[3] || '';
+                document.getElementById('incompatible').value = eleve.options?.[4] || '';
                 this.deleteButton.classList.remove('hidden');
             } else { this.currentEleveId = null; this.deleteButton.classList.add('hidden'); }
             this.eleveModal.classList.remove('hidden'); document.getElementById('eleve').focus();
         }
 
         fermerModal() {
-            this.eleveModal.classList.add('hidden'); this.settingsModal.classList.add('hidden');
-            this.eleveForm.reset(); this.deleteButton.classList.add('hidden'); this.currentEleveId = null;
+            this.eleveModal.classList.add('hidden');
+            this.settingsModal.classList.add('hidden');
+            this.fermerModalColonne();
+            this.eleveForm.reset();
+            this.deleteButton.classList.add('hidden');
+            this.currentEleveId = null;
         }
 
         // --- Import / Export ---
@@ -868,8 +895,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (headers.length < expectedHeaderCount) { alert(`Format CSV incorrect. Attendu ${expectedHeaderCount}+ colonnes. Trouvé ${headers.length}.`); this.csvFileInput.value = ''; return; }
                 const nouveauxEleves = []; let errors = [];
                 for (let i = 1; i < lines.length; i++) {
-                    // Use more robust CSV parsing logic if needed (e.g., PapaParse library)
-                    const values = lines[i].split(',').map(v => v.trim()); // Simple split, may fail with commas in fields
+                    // Robust CSV parsing regex to handle quoted fields with commas
+                    let row = lines[i];
+                    // Simplified regex for basic quoted fields
+                    const rowValues = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => {
+                        v = v.trim();
+                        return v.startsWith('"') && v.endsWith('"') ? v.slice(1, -1).replace(/""/g, '"') : v;
+                    });
+                    
+                    const values = rowValues;
+                    
                     if (values.length < expectedHeaderCount) { errors.push(`Ligne ${i + 1}: ${values.length} colonnes (attendu ${expectedHeaderCount}+).`); continue; }
 
                     // Parse name assuming "NOM Prénom" format in CSV
@@ -877,8 +912,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     let nomCsv = '', prenomCsv = '';
                     if (parts.length === 1) nomCsv = parts[0];
                     else if (parts.length > 1) { nomCsv = parts.slice(0, -1).join(' '); prenomCsv = parts.slice(-1)[0]; }
-
-                    const sexe = values[2]?.toUpperCase(); const moyVal = values[3]?.replace(',', '.'); const moy = parseFloat(moyVal); const lv1 = values[4]; const lv2 = values[5];
+                    
+                    const sexe = values[2]?.toUpperCase(); const moyVal = values[3]?.replace(',', '.'); 
+                    const moy = parseFloat(moyVal); const lv1 = values[4]; const lv2 = values[5];
                     const options = values.slice(6, 11); // Opt1-5 (Indices 6-10)
 
                     // Validate imported data
@@ -887,15 +923,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (isNaN(moy) || moy < 0 || moy > 20) { errors.push(`Ligne ${i + 1}: Moyenne invalide ('${values[3]}').`); continue; }
 
                     nouveauxEleves.push({
-                        id: Date.now() + i, 
-                        nom: nomCsv, 
-                        prenom: prenomCsv, 
-                        sexe: sexe, 
-                        moyenne: moyVal,
-                        lv1: lv1, 
-                        lv2: lv2, 
-                        options: options.map(opt => opt.trim()), // Ensure options are trimmed
-                        classe: values[0], // Ajouter la classe depuis la première colonne du CSV
+                        id: Date.now() + i, nom: nomCsv, prenom: prenomCsv, sexe: sexe, moyenne: moyVal,
+                        lv1: lv1, lv2: lv2, options: options.map(opt => opt.trim()), // Ensure options are trimmed
                         colonne: 'A placer'
                     });
                 }
@@ -914,13 +943,20 @@ document.addEventListener('DOMContentLoaded', () => {
              const headers = ["Classe", "Élève", "Sexe", "Moyenne", "LV1", "LV2", "Option1", "Option2", "Option3", "Compatible", "Incompatible"];
              const csvRows = [headers.join(',')];
              this.eleves.forEach(e => {
-                 // Export name as "NOM Prénom"
                  const eleveName = `${e.nom || ''} ${e.prenom || ''}`.trim();
-                 const row = [ e.colonne || 'A placer', `"${eleveName}"`, // Quote name field
-                     e.sexe || '', (e.moyenne || '').toString().replace('.', ','), // Use comma for average
-                     e.lv1 || '', e.lv2 || '', e.options?.[0] || '', e.options?.[1] || '', e.options?.[2] || '', e.options?.[3] || '', e.options?.[4] || '', ];
-                 // Basic quoting for fields containing commas
-                 csvRows.push(row.map(f => typeof f === 'string' && f.includes(',') ? `"${f.replace(/"/g, '""')}"` : f).join(','));
+                 const row = [ 
+                     e.colonne || 'A placer', 
+                     eleveName,
+                     e.sexe || '', 
+                     (e.moyenne || '').toString().replace('.', ','),
+                     e.lv1 || '', e.lv2 || '', 
+                     e.options?.[0] || '', e.options?.[1] || '', e.options?.[2] || '', e.options?.[3] || '', e.options?.[4] || '' 
+                 ];
+                 // Proper CSV quoting logic
+                 csvRows.push(row.map(f => {
+                     const str = String(f);
+                     return (str.includes(',') || str.includes('"') || str.includes('\n')) ? `"${str.replace(/"/g, '""')}"` : str;
+                 }).join(','));
              });
              const csvString = csvRows.join('\r\n'); const blob = new Blob(["\ufeff", csvString], { type: 'text/csv;charset=utf-8;' });
              const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Export_Classes_${new Date().toISOString().slice(0, 10)}.csv`;
@@ -1015,55 +1051,70 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
 
-        // Enhanced relationship icon update function
+        // Optimised relationship icon update — O(n) via name Map instead of O(n²)
         updateStudentRelationshipIcons() {
-            // Clear existing icons and highlights first
+            // Clear existing icons and highlights
             document.querySelectorAll('.eleve-item .incompatibility-icon, .eleve-item .compatibility-icon').forEach(icon => icon.remove());
             document.querySelectorAll('.eleve-item.incompatible-pair, .eleve-item.compatible-pair').forEach(item => {
                 item.classList.remove('incompatible-pair', 'compatible-pair');
             });
 
-            const studentElements = {}; // Map ID to DOM element
+            // Build id → DOM element map
+            const studentElements = {};
             document.querySelectorAll('.eleve-item[data-id]').forEach(el => {
                 studentElements[el.dataset.id] = el;
             });
 
-            const processedIncompat = new Set(), processedCompat = new Set();
+            // Pre-build normalized name → student map for O(1) lookups
+            const nameMap = new Map();
+            this.eleves.forEach(s => nameMap.set(this.getNormalizedFullName(s), s));
 
-            // Process all students
+            const processedIncompat = new Set();
+            const processedCompat = new Set();
+
+            // Single O(n) pass — resolve relationships via nameMap
             this.eleves.forEach(student1 => {
-                const el1 = studentElements[student1.id]; 
+                const el1 = studentElements[student1.id];
                 if (!el1) return;
 
-                // Check against all other students
-                this.eleves.forEach(student2 => {
-                    if (student1.id === student2.id) return;
-                    const el2 = studentElements[student2.id];
-                    if (!el2) return;
-                    
-                    // Create a unique key for this pair
-                    const pairKey = [student1.id, student2.id].sort().join('-');
-                    
-                    // Check incompatibility (same column)
-                    if (student1.colonne === student2.colonne && 
-                        this.areStudentsIncompatible(student1, student2) && 
-                        !processedIncompat.has(pairKey)) {
-                        
-                        processedIncompat.add(pairKey);
-                        this.addIncompatibilityMarker(el1, student2);
-                        this.addIncompatibilityMarker(el2, student1);
+                // --- Incompatibility check ---
+                const incompatName = (student1.options?.[4] || '').trim().toLowerCase();
+                if (incompatName) {
+                    const student2 = nameMap.get(incompatName);
+                    if (student2 && student2.id !== student1.id) {
+                        const el2 = studentElements[student2.id];
+                        if (el2 && student1.colonne === student2.colonne) {
+                            const pairKey = [student1.id, student2.id].sort().join('-');
+                            if (!processedIncompat.has(pairKey)) {
+                                processedIncompat.add(pairKey);
+                                this.addIncompatibilityMarker(el1, student2);
+                                this.addIncompatibilityMarker(el2, student1);
+                            }
+                        }
                     }
-                    
-                    // Check compatibility (different columns)
-                    if (student1.colonne !== student2.colonne && 
-                        this.areStudentsCompatible(student1, student2) && 
-                        !processedCompat.has(pairKey)) {
-                        
-                        processedCompat.add(pairKey);
-                        this.addCompatibilityMarker(el1, student2);
-                        this.addCompatibilityMarker(el2, student1);
+                }
+
+                // --- Compatibility check (mutual + different columns) ---
+                const compatName = (student1.options?.[3] || '').trim().toLowerCase();
+                if (compatName) {
+                    const student2 = nameMap.get(compatName);
+                    if (student2 && student2.id !== student1.id) {
+                        const el2 = studentElements[student2.id];
+                        if (el2 && student1.colonne !== student2.colonne) {
+                            // Verify mutual compatibility
+                            const compat2Name = (student2.options?.[3] || '').trim().toLowerCase();
+                            const name1 = this.getNormalizedFullName(student1);
+                            if (compat2Name === name1) {
+                                const pairKey = [student1.id, student2.id].sort().join('-');
+                                if (!processedCompat.has(pairKey)) {
+                                    processedCompat.add(pairKey);
+                                    this.addCompatibilityMarker(el1, student2);
+                                    this.addCompatibilityMarker(el2, student1);
+                                }
+                            }
+                        }
                     }
-                });
+                }
             });
         }
 
@@ -1134,164 +1185,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 3000);
             }
         }
-
-        updateColumnSummary(nomColonne) {
-            const elevesDansColonne = this.eleves.filter(e => e.colonne === nomColonne);
-            const summary = {
-                lv1: {},
-                lv2: {},
-                option1: {},
-                option2: {},
-                option3: {}
-            };
-
-            elevesDansColonne.forEach(eleve => {
-                // LV1
-                if (eleve.lv1) {
-                    const lv1Key = eleve.lv1.toUpperCase();
-                    summary.lv1[lv1Key] = (summary.lv1[lv1Key] || 0) + 1;
-                }
-                // LV2
-                if (eleve.lv2) {
-                    const lv2Key = eleve.lv2.toUpperCase();
-                    summary.lv2[lv2Key] = (summary.lv2[lv2Key] || 0) + 1;
-                }
-                // Options (assuming options array is always present and has at least 3 elements)
-                if (eleve.options && eleve.options.length >= 3) {
-                    if (eleve.options[0]) {
-                        const opt1Key = eleve.options[0].toUpperCase();
-                        summary.option1[opt1Key] = (summary.option1[opt1Key] || 0) + 1;
-                    }
-                    if (eleve.options[1]) {
-                        const opt2Key = eleve.options[1].toUpperCase();
-                        summary.option2[opt2Key] = (summary.option2[opt2Key] || 0) + 1;
-                    }
-                    if (eleve.options[2]) {
-                        const opt3Key = eleve.options[2].toUpperCase();
-                        summary.option3[opt3Key] = (summary.option3[opt3Key] || 0) + 1;
-                    }
-                }
-            });
-
-            const colonneEl = document.querySelector(`.colonne[data-nom="${nomColonne}"]`);
-            if (!colonneEl) return;
-            const choixAPlacerDiv = colonneEl.querySelector('.choix-a-placer');
-
-            if (choixAPlacerDiv) {
-                let htmlContent = '';
-
-                const formatSummary = (title, data) => {
-                    const entries = Object.entries(data).sort((a, b) => b[1] - a[1]); // Sort by count descending
-                    if (entries.length === 0) return '';
-                    const itemsHtml = entries.map(([key, count]) => {
-                        let abbreviation = key.substring(0, 3);
-                        let colorClass = '';
-                        // Apply specific colors for known languages
-                        if (key.includes('ANGLAIS')) { abbreviation = 'ANG'; colorClass = 'lv-anglais'; }
-                        else if (key.includes('ITALIEN')) { abbreviation = 'ITA'; colorClass = 'lv-italien'; }
-                        else if (key.includes('ALLEMAND')) { abbreviation = 'ALL'; colorClass = 'lv-allemand'; }
-                        else if (key.includes('ESPAGNOL')) { abbreviation = 'ESP'; colorClass = 'lv-espanol'; }
-                        else {
-                            // For other options, use generic option colors or a default
-                            if (title.includes('LV1')) colorClass = 'summary-lv1-color';
-                            else if (title.includes('LV2')) colorClass = 'summary-lv2-color';
-                            else if (title.includes('Option1')) colorClass = 'summary-opt1-color';
-                            else if (title.includes('Option2')) colorClass = 'summary-opt2-color';
-                            else if (title.includes('Option3')) colorClass = 'summary-opt3-color';
-                        }
-                        return `<span class="compteur-item ${colorClass}" title="${key}" data-option-key="${key}" data-option-type="${title.toLowerCase()}">${abbreviation} = ${count}</span>`;
-                    }).join('');
-                    return `<div class="summary-category"><strong>${title}:</strong> ${itemsHtml}</div>`;
-                };
-
-                choixAPlacerDiv.innerHTML = ''; // Clear existing content
-
-
-                const lvContainer = document.createElement('div');
-                lvContainer.className = 'summary-line';
-                lvContainer.innerHTML += formatSummary('LV1', summary.lv1);
-                lvContainer.innerHTML += formatSummary('LV2', summary.lv2);
-                choixAPlacerDiv.appendChild(lvContainer);
-
-                const optionsContainer = document.createElement('div');
-                optionsContainer.className = 'summary-line';
-                optionsContainer.innerHTML += formatSummary('Option1', summary.option1);
-                optionsContainer.innerHTML += formatSummary('Option2', summary.option2);
-                optionsContainer.innerHTML += formatSummary('Option3', summary.option3);
-                choixAPlacerDiv.appendChild(optionsContainer);
-            }
-        }
-
-        // Performant method to re-order DOM elements instead of rebuilding them
-        rafraichirToutesLesColonnes() {
-            const allItemsMap = new Map();
-            document.querySelectorAll('.eleve-item[data-id]').forEach(item => {
-                allItemsMap.set(item.dataset.id, item);
-            });
-
-            const lists = {};
-            this.colonnes.forEach(nom => {
-                lists[nom] = document.querySelector(`.eleves-liste[data-colonne="${nom}"]`);
-            });
-
-            // Iterate through the master sorted list of students
-            // and append their corresponding DOM elements to the correct column list.
-            // Appending an element that is already in the DOM moves it.
-            this.eleves.forEach(eleve => {
-                const eleveIdStr = String(eleve.id);
-                const item = allItemsMap.get(eleveIdStr);
-                if (item) {
-                    const colName = eleve.colonne && this.colonnes.includes(eleve.colonne) ? eleve.colonne : 'A placer';
-                    const listElement = lists[colName];
-                    if (listElement) {
-                        listElement.appendChild(item);
-                    }
-                }
-            });
-
-            // Update counters and relationship icons as they depend on the new structure
-            this.mettreAJourCompteur();
-            this.updateStudentRelationshipIcons();
-        }
-
-        // Sorts students by a specific option
-        trierParOption(optionKey, optionType, nomColonne) {
-            const getOptionValue = (eleve, type) => {
-                switch (type) {
-                    case 'lv1': return eleve.lv1 || '';
-                    case 'lv2': return eleve.lv2 || '';
-                    case 'option1': return eleve.options?.[0] || '';
-                    case 'option2': return eleve.options?.[1] || '';
-                    case 'option3': return eleve.options?.[2] || '';
-                    default: return '';
-                }
-            };
-
-            // Greatly improve performance by only sorting the relevant part of the array
-            const elevesDansColonne = this.eleves.filter(e => e.colonne === nomColonne);
-            const autresEleves = this.eleves.filter(e => e.colonne !== nomColonne);
-
-            elevesDansColonne.sort((a, b) => {
-                const aHasOption = (getOptionValue(a, optionType) || '').toUpperCase() === optionKey;
-                const bHasOption = (getOptionValue(b, optionType) || '').toUpperCase() === optionKey;
-
-                // Prioritize students with the selected option
-                if (aHasOption && !bHasOption) return -1;
-                if (!aHasOption && bHasOption) return 1;
-
-                // Secondary sort: alphabetical
-                const nomCompare = (a.nom || '').localeCompare(b.nom || '', 'fr', { sensitivity: 'base' });
-                return nomCompare !== 0 ? nomCompare : (a.prenom || '').localeCompare(b.prenom || '', 'fr', { sensitivity: 'base' });
-            });
-
-            // Recombine the master list
-            this.eleves = [...elevesDansColonne, ...autresEleves];
-
-            this.sauvegarderDonnees();
-            this.rafraichirToutesLesColonnes();
-            this.triggerSortAnimation();
-        }
-
 
     } // End class GestionEleves
 
@@ -1519,7 +1412,8 @@ function renderGroupsList() {
         const otherStudents = [];
         
         allStudents.forEach(student => {
-            if (group.students.includes(student.id)) {
+            const isMember = group.students.some(sid => String(sid) === String(student.id));
+            if (isMember) {
                 groupMembers.push(student);
             } else {
                 otherStudents.push(student);
@@ -1567,10 +1461,9 @@ function renderGroupsList() {
             nameSpan.textContent = `${student.nom || ''} ${student.prenom || ''}`.trim();
             li.appendChild(nameSpan);
 
-            // Vérifier si l'élève appartient à d'autres groupes
             const otherGroups = studentGroups.filter(g => 
-                g.id !== groupId && 
-                g.students.includes(student.id)
+                String(g.id) !== String(groupId) && 
+                g.students.some(sid => String(sid) === String(student.id))
             );
             
             if (otherGroups.length > 0) {
@@ -1615,15 +1508,16 @@ function renderGroupsList() {
         const group = studentGroups.find(g => g.id === groupId);
         if (!group) return;
         
-        if (!group.students.includes(studentId)) {
+        // Use a consistent comparison for ID (strings/numbers)
+        if (!group.students.some(sid => String(sid) === String(studentId))) {
             group.students.push(studentId);
             saveGroups();
             updateStudentCards();
             
             // Récupérer les listes d'élèves mises à jour
             const allStudents = getAllStudents();
-            const groupMembers = allStudents.filter(student => group.students.includes(student.id));
-            const otherStudents = allStudents.filter(student => !group.students.includes(student.id));
+            const groupMembers = allStudents.filter(student => group.students.some(sid => String(sid) === String(student.id)));
+            const otherStudents = allStudents.filter(student => !group.students.some(sid => String(sid) === String(student.id)));
             
             // Mettre à jour les compteurs avant de rafraîchir la vue
             updateGroupCounters(groupMembers, otherStudents);
@@ -1657,14 +1551,14 @@ function renderGroupsList() {
         const group = studentGroups.find(g => g.id === groupId);
         if (!group) return;
         
-        group.students = group.students.filter(id => id !== studentId);
+        group.students = group.students.filter(id => String(id) !== String(studentId));
         saveGroups();
         updateStudentCards();
         
         // Récupérer les listes d'élèves mises à jour
         const allStudents = getAllStudents();
-        const groupMembers = allStudents.filter(student => group.students.includes(student.id));
-        const otherStudents = allStudents.filter(student => !group.students.includes(student.id));
+        const groupMembers = allStudents.filter(student => group.students.some(sid => String(sid) === String(student.id)));
+        const otherStudents = allStudents.filter(student => !group.students.some(sid => String(sid) === String(student.id)));
         
         // Mettre à jour les compteurs avant de rafraîchir la vue
         updateGroupCounters(groupMembers, otherStudents);
@@ -1719,13 +1613,11 @@ function renderGroupsList() {
 
 // Get all students from all columns
 function getAllStudents() {
-    const allStudents = [];
-    const app = document.querySelector('.main-content').gestionEleves;
-    
-    if (app && app.eleves) {
-        return app.eleves;
+    if (window.app && window.app.eleves) {
+        return window.app.eleves;
     } else {
         // Fallback method using DOM
+        const allStudents = [];
         const columns = document.querySelectorAll('.colonne');
         
         columns.forEach(column => {
@@ -1734,14 +1626,15 @@ function getAllStudents() {
                 const studentId = student.getAttribute('data-id');
                 if (studentId) {
                     // Find the student data in the app instance if possible
-                    const studentData = app ? app.eleves.find(e => e.id == studentId) : null;
+                    const studentData = window.app ? window.app.eleves.find(e => String(e.id) === String(studentId)) : null;
                     if (studentData) {
                         allStudents.push(studentData);
                     } else {
                         // Create minimal student data from DOM
+                        const strong = student.querySelector('strong');
                         allStudents.push({
                             id: studentId,
-                            nom: student.querySelector('strong').textContent.trim(),
+                            nom: strong ? strong.textContent.trim() : 'Inconnu',
                             colonne: column.getAttribute('data-nom')
                         });
                     }
@@ -1813,7 +1706,8 @@ function updateStudentCards() {
 
 // Get groups that a student belongs to
 function getStudentGroups(studentId) {
-    return studentGroups.filter(group => group.students.includes(studentId));
+    if (typeof studentGroups === 'undefined') return [];
+    return studentGroups.filter(group => group.students.some(sid => String(sid) === String(studentId)));
 }
 
 // This function is not needed as the Sortable initialization is already handled in the GestionEleves class
